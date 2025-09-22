@@ -1,0 +1,52 @@
+name: Unzip shell.zip and remove archive
+
+on:
+  push:
+    paths:
+      - '**/shell.zip'
+  workflow_dispatch:
+
+jobs:
+  unzip-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Ensure unzip available
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Extract shell.zip and remove archive
+        run: |
+          set -e
+          if [ -f "./shell.zip" ]; then
+            echo "Found shell.zip in repo root. Extracting to ./shell/"
+            mkdir -p ./shell
+            unzip -o ./shell.zip -d ./shell
+            git rm -- ./shell.zip || true
+            git add ./shell
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "Unzip shell.zip into shell/ and remove archive" || echo "No changes to commit"
+            git push
+          else
+            # also search workspace for any shell.zip anywhere
+            found=$(find . -type f -name 'shell.zip' | sed -n '1p' || true)
+            if [ -n "$found" ]; then
+              echo "Found shell.zip at $found. Extracting to ${found%.*}/"
+              dir="${found%.*}"
+              mkdir -p "$dir"
+              unzip -o "$found" -d "$dir"
+              git rm -- "$found" || true
+              git add "$dir"
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git commit -m "Unzip shell.zip into $dir/ and remove archive" || echo "No changes to commit"
+              git push
+            else
+              echo "No shell.zip found in workspace — nothing to do."
+            fi
+          fi
